@@ -1,8 +1,12 @@
+import random
+
 import numpy as np
 import torch
 import math
 import torch.nn as nn
 import torch.nn.functional as F
+from tqdm.notebook import trange
+import random
 torch.manual_seed(0)
 
 class tictactoe:
@@ -61,8 +65,9 @@ class tictactoe:
         return encoded_state
 
 class RestNet(nn.Module):
-    def __init__(self, game, num_resBlocks, num_hidden):
+    def __init__(self, game, num_resBlocks, num_hidden, device):
         super().__init__()
+        self.device = device
         self.startBlock = nn.Sequential(
             nn.Conv2d(3, num_hidden, kernel_size=3, padding=1),
             nn.BatchNorm2d(num_hidden),
@@ -87,6 +92,7 @@ class RestNet(nn.Module):
             nn.Linear(3 * game.row_count * game.colum_count, 1),
             nn.Tanh()
         )
+        self.to(device)
 
     def forward(self, x):
         x = self.startBlock(x)
@@ -116,7 +122,7 @@ class ResBlock(nn.Module):
 
 
 class Node:
-    def __init__(self, game, args, state, parent=None, action_taken=None, prior=0):
+    def __init__(self, game, args, state, parent=None, action_taken=None, prior=0, visit_count=0):
         self.game = game
         self.args = args
         self.state = state
@@ -126,7 +132,7 @@ class Node:
 
         self.children = []
         #self.expandable_moves = game.get_valid_moves(state), removing this, but actually could be used to make search phase more effficient
-        self.visit_count = 0
+        self.visit_count = visit_count
         self.value_sum = 0
 
     def is_fully_expanded(self):
@@ -197,7 +203,19 @@ class MCTS:
 
     @torch.no_grad()
     def search(self, state):
-        root = Node(self.game, self.args, state)
+        root = Node(self.game, self.args, state, visit_count=1)
+        policy, _ = self.model(
+            torch.tensor(self.game.get_encoded_state(state), device=self.model.device).unsqueeze(0)
+        )
+        policy = torch.softmax(policy, axis=1).squeeze(0).cpu().numpy()
+        policy = ((1-self.args['dirichlet_epsilon']) * policy + self.args['dirichlet_epsilon']
+                  * np.random.dirichlet([self.args['dirichlet_alpha']]* self.game.action_size))
+
+        valid_moves = self.game.get_valid_moves(state)
+        policy *= valid_moves
+
+        policy /= np.sum(policy)
+        root.expand(policy)
 
         for search in range(self.args['num_searches']):
             node = root
@@ -210,7 +228,7 @@ class MCTS:
 
             if not is_terminal:
                 policy, value = self.model(
-                    torch.tensor(self.game.get_encoded_state(node.state)).unsqueeze(0)
+                    torch.tensor(self.game.get_encoded_state(node.state), device=self.model.device).unsqueeze(0)
                 )
                 policy = torch.softmax(policy, axis=1).squeeze(0).cpu().numpy()
                 valid_moves = self.game.get_valid_moves(node.state)
@@ -238,37 +256,93 @@ class AlphaZero:
         self.mcts = MCTS(game, args, model)
 
     def selfPlay(self):
-        pass
+        memory = []
+        player = 1
+        state = self.game.get_initial_state()
 
-    def train(self):
-        pass
+        while True:
+            neutral_state = self.game.change_perspective(state, player)
+            action_probs = self.mcts.search(neutral_state)
+            memory.append((neutral_state, action_probs, player))
+
+            temperature_action_probs = action_probs ** (1/ self.args['temperature'])
+            action = np.random.choice(self.game.action_size, p=action_probs)
+
+            state = self.game.get_next_state(state, action, player)
+
+            value, is_terminal = self.game.get_value_and_terminate(state, action)
+            if is_terminal:
+                returnMemory = []
+                for hist_neutral_state, hist_action_probs, hist_player in memory:
+                    hist_outcome = value if hist_player == player else self.game.get_opponent_value(value)
+                    returnMemory.append((
+                        self.game.get_encoded_state(hist_neutral_state),
+                        hist_action_probs,
+                        hist_outcome
+                    ))
+                return returnMemory
+
+            player = self.game.get_opponent(player)
+
+    def train(self, memory):
+        random.shuffle(memory)
+        for batchIdx in range(0, len(memory), self.args['batch_size']):
+            sample = memory[batchIdx:min(len(memory) -1, batchIdx+self.args['batch_size'])]
+            state, policy_targets, value_targets = zip(*sample)
+
+            state, policy_targets, value_targets = np.array(state), np.array(policy_targets), np.array(value_targets).reshape(-1, 1)
+            state = torch.tensor(state,dtype=torch.float32, device=self.model.device)
+            policy_targets = torch.tensor(policy_targets, dtype=torch.float32, device=self.model.device)
+            value_targets = torch.tensor(value_targets, dtype=torch.float32, device=self.model.device)
+
+            out_policy, out_value = self.model(state)
+
+            policy_loss = F.cross_entropy(out_policy, policy_targets)
+            value_loss = F.mse_loss(out_value, value_targets)
+            loss = policy_loss + value_loss
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
 
     def learn(self):
         for iteration in self.args['num_iterations']:
             memory = []
 
             self.model.eval()
-            for selfPlay_iteration in range(self.args['num_selfPlay_iterations']):
+            for selfPlay_iteration in trange(self.args['num_selfPlay_iterations']):
                 memory += self.selfPlay()
 
             self.model.train()
-            for epoch in range(self.args['num_epochs']):
+            for epoch in trange(self.args['num_epochs']):
                 self.train(memory)
 
             torch.save(self.model.state_dict(), f"model_{iteration}.pt" )
-            torch.save(self.optimizer.)
+            torch.save(self.optimizer.state_dict(), f"optimizer_{iteration}.pt")
 
 game = tictactoe()
 player = 1
 state = game.get_init_state()
 
+
 args = {
     'C': 2,
-    'num_searches': 1000
+    'num_searches': 1000,
+    'num_iterations' : 3,
+    'num_selfPlay_iterations' : 500,
+    'num_epochs' : 4,
+    'batch_size' : 64,
+    'temperature' : 1.25,
+    'dirichlet_epsilon' : 0.25,
+    'dirichlet_alpha' : 0.3
+
 }
-model = RestNet(game, 4, 64)
+model = RestNet(game, 4, 64, device=torch.device("cpu"))
 model.eval()
 mcts = MCTS(game, args, model)
+device = torch.device("cuda" if torch.cude.is_available else "cpu")
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
 
 while True:
     print(state)
