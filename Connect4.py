@@ -1,4 +1,3 @@
-
 import numpy as np
 import torch
 import math
@@ -8,40 +7,53 @@ from tqdm.notebook import trange
 import random
 torch.manual_seed(0)
 
-class Tictactoe:
+class Connect4:
     def __init__(self):
-        self.row_count = 3
-        self.colum_count = 3
-        self.action_size = self.row_count * self.colum_count
+        self.row_count = 6
+        self.colum_count = 7
+        self.action_size = self.colum_count
+        self.in_a_row = 4
 
     def __repr__(self):
-        return "Tictactoe"
+        return "Connect4"
 
     def get_init_state(self):
         return np.zeros((self.row_count, self.colum_count))
 
     def get_next_state(self, state, action, player):
-        row = action // self.row_count
-        colum = action % self.colum_count
-        new_state = state.copy()  # Make a copy to avoid modifying the original state
-        new_state[row, colum] = player
-        return new_state
+        row = np.max(np.where(state[:, action] == 0))
+        state[row, action] = player
+        return state
 
     def get_valid_moves(self, state):
-        return (state.reshape(-1) == 0).astype(np.uint8)
+        return (state[0] == 0).astype(np.uint8)
 
     def check_win(self, state, action):
-        if action is None:
+        if action == None:
             return False
-        row = action // self.row_count
-        colum = action % self.colum_count
-        player = state[row, colum]
+        row = np.min(np.where(state[:,action] !=0))
+        colum = action
+        player = state[row][colum]
+
+        def count(offset_row, offset_column):
+            for i in range(1, self.in_a_row):
+                r= row + offset_row*i
+                c = colum + offset_column*i
+                if (
+                    r<0
+                    or r>= self.row_count
+                    or c<0
+                    or c >= self.colum_count
+                    or state[r][c] !=player
+                ):
+                    return i -1
+            return self.in_a_row-1
 
         return (
-            np.sum(state[row, :]) == player * self.colum_count
-            or np.sum(state[:, colum]) == player * self.row_count
-            or np.sum(np.diag(state)) == player * self.row_count
-            or np.sum(np.diag(np.flip(state, axis=0))) == player * self.colum_count
+            count(1, 0)>= self.in_a_row-1
+            or (count(0,1)+ count(0, -1)) >= self.in_a_row-1
+            or (count(1,1)+ count(-1, -1)) >= self.in_a_row-1
+            or (count(1, -1)+ count(-1, -1)) >= self.in_a_row-1
         )
 
     def get_value_and_terminate(self, state, action):
@@ -323,16 +335,17 @@ class AlphaZero:
             torch.save(self.model.state_dict(), f"model_{iteration}_{self.game}.pt" )
             torch.save(self.optimizer.state_dict(), f"optimizer_{iteration}_{self.game}.pt")
 
-tictactoe = Tictactoe()
+game = Connect4()
 player = 1
-state = tictactoe.get_init_state()
+state = game.get_init_state()
 
 
 args = {
     'C': 2,
-    'num_searches': 1000,
+    'num_searches': 100,
     'num_iterations' : 3,
     'num_selfPlay_iterations' : 500,
+    'num_parallel_games' : 100,
     'num_epochs' : 4,
     'batch_size' : 64,
     'temperature' : 1.25,
@@ -340,29 +353,29 @@ args = {
     'dirichlet_alpha' : 0.3
 
 }
-model = RestNet(tictactoe, 4, 64, device=torch.device("cpu"))
+model = RestNet(game, 9, 128, device=torch.device("cpu"))
 model.eval()
-mcts = MCTS(tictactoe, args, model)
-device = torch.device("cuda" if torch.cuda.is_available else "cpu")
+mcts = MCTS(game, args, model)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
 
 while True:
     print(state)
     if player == 1:
-        valid_moves = tictactoe.get_valid_moves(state)
-        print("Valid moves:", [i for i in range(tictactoe.action_size) if valid_moves[i] == 1])
+        valid_moves = game.get_valid_moves(state)
+        print("Valid moves:", [i for i in range(game.action_size) if valid_moves[i] == 1])
         action = int(input(f"Player {player}, enter your move (0-8): "))
 
         if valid_moves[action] == 0:
             print("Action not valid. Try again.")
             continue
     else:
-        neutral_state = tictactoe.change_perspective(state, player)
+        neutral_state = game.change_perspective(state, player)
         mcts_probs = mcts.search(neutral_state)
         action = np.argmax(mcts_probs)
 
-    state = tictactoe.get_next_state(state, action, player)
-    value, is_terminal = tictactoe.get_value_and_terminate(state, action)
+    state = game.get_next_state(state, action, player)
+    value, is_terminal = game.get_value_and_terminate(state, action)
 
     if is_terminal:
         print(state)
@@ -372,4 +385,4 @@ while True:
             print("It's a draw!")
         break
 
-    player = tictactoe.get_opponent(player)
+    player = game.get_opponent(player)
