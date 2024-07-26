@@ -81,6 +81,35 @@ class Connect4:
 
         return encoded_state
 
+    def play(self, state, player):
+        while True:
+            print(state)
+            if player == 1:
+                valid_moves = game.get_valid_moves(state)
+                print("Valid moves:", [i for i in range(game.action_size) if valid_moves[i] == 1])
+                action = int(input(f"Player {player}, enter your move (0-8): "))
+
+                if valid_moves[action] == 0:
+                    print("Action not valid. Try again.")
+                    continue
+            else:
+                neutral_state = game.change_perspective(state, player)
+                mcts_probs = mcts.search(neutral_state)
+                action = np.argmax(mcts_probs)
+
+            state = game.get_next_state(state, action, player)
+            value, is_terminal = game.get_value_and_terminate(state, action)
+
+            if is_terminal:
+                print(state)
+                if value == 1:
+                    print(f"Player {player} won!")
+                else:
+                    print("It's a draw!")
+                break
+
+            player = game.get_opponent(player)
+
 class ResNet(nn.Module):
     def __init__(self, game, num_resBlocks, num_hidden, device):
         super().__init__()
@@ -464,32 +493,5 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
 alphazero = AlphaZeroParallel(model, optimizer, game, args)
 
-def play(state, player):
-    while True:
-        print(state)
-        if player == 1:
-            valid_moves = game.get_valid_moves(state)
-            print("Valid moves:", [i for i in range(game.action_size) if valid_moves[i] == 1])
-            action = int(input(f"Player {player}, enter your move (0-8): "))
 
-            if valid_moves[action] == 0:
-                print("Action not valid. Try again.")
-                continue
-        else:
-            neutral_state = game.change_perspective(state, player)
-            mcts_probs = mcts.search(neutral_state)
-            action = np.argmax(mcts_probs)
-
-        state = game.get_next_state(state, action, player)
-        value, is_terminal = game.get_value_and_terminate(state, action)
-
-        if is_terminal:
-            print(state)
-            if value == 1:
-                print(f"Player {player} won!")
-            else:
-                print("It's a draw!")
-            break
-
-        player = game.get_opponent(player)
 alphazero.learn()
