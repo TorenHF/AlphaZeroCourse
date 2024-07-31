@@ -355,7 +355,7 @@ class MCTS:
 
 class AlphaZeroParallel:
     def __init__(self, model, optimizer, game, args):
-        self.model = model
+        self.model = model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
         self.optimizer = optimizer
         self.game = game
         self.args = args
@@ -366,11 +366,10 @@ class AlphaZeroParallel:
         player = 1
         spGames = [SPG(self.game) for spg in range(self.args['num_parallel_games'])]
 
-        while len(spGames) >0:
+        while len(spGames) > 0:
             states = np.stack([spg.state for spg in spGames])
 
             neutral_states = self.game.change_perspective(states, player)
-
             self.mcts.search(neutral_states, spGames)
 
             for i in range(len(spGames))[::-1]:
@@ -383,7 +382,8 @@ class AlphaZeroParallel:
 
                 spg.memory.append((spg.root.state, action_probs, player))
 
-                temperature_action_probs = action_probs ** (1/ self.args['temperature'])
+                temperature_action_probs = action_probs ** (1 / self.args['temperature'])
+                temperature_action_probs /= np.sum(temperature_action_probs)  # Ensure it sums to 1
                 action = np.random.choice(self.game.action_size, p=temperature_action_probs)
 
                 spg.state = self.game.get_next_state(spg.state, action, player)
@@ -402,6 +402,8 @@ class AlphaZeroParallel:
             player = self.game.get_opponent(player)
 
         return return_memory
+
+
 
     def train(self, memory):
         random.shuffle(memory)
