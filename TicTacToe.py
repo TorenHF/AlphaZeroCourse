@@ -341,6 +341,8 @@ args = {
 
 }
 model = RestNet(tictactoe, 4, 64, device=torch.device("cpu"))
+state_dict = torch.load("model_5.pt")
+model.load_state_dict(state_dict)
 model.eval()
 mcts = MCTS(tictactoe, args, model)
 device = torch.device("cuda" if torch.cuda.is_available else "cpu")

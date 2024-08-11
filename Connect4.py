@@ -3,8 +3,8 @@ import torch
 import math
 import torch.nn as nn
 import torch.nn.functional as F
-from tqdm.notebook import trange
 import random
+
 torch.manual_seed(0)
 
 class Connect4:
@@ -29,9 +29,9 @@ class Connect4:
         return (state[0] == 0).astype(np.uint8)
 
     def check_win(self, state, action):
-        if action == None:
+        if action is None:
             return False
-        row = np.min(np.where(state[:,action] !=0))
+        row = np.min(np.where(state[:,action] != 0))
         colum = action
         player = state[row][colum]
 
@@ -74,7 +74,7 @@ class Connect4:
 
     def get_encoded_state(self, state):
         encoded_state = np.stack(
-            (state == -1, state == 0, state ==1)
+            (state == -1, state == 0, state == 1)
         ).astype(np.float32)
         if len(state.shape) == 3:
             encoded_state = np.swapaxes(encoded_state, 0, 1)
@@ -85,20 +85,20 @@ class Connect4:
         while True:
             print(state)
             if player == 1:
-                valid_moves = game.get_valid_moves(state)
-                print("Valid moves:", [i for i in range(game.action_size) if valid_moves[i] == 1])
+                valid_moves = self.get_valid_moves(state)
+                print("Valid moves:", [i for i in range(self.action_size) if valid_moves[i] == 1])
                 action = int(input(f"Player {player}, enter your move (0-8): "))
 
                 if valid_moves[action] == 0:
                     print("Action not valid. Try again.")
                     continue
             else:
-                neutral_state = game.change_perspective(state, player)
+                neutral_state = self.change_perspective(state, player)
                 mcts_probs = mcts.search(neutral_state)
                 action = np.argmax(mcts_probs)
 
-            state = game.get_next_state(state, action, player)
-            value, is_terminal = game.get_value_and_terminate(state, action)
+            state = self.get_next_state(state, action, player)
+            value, is_terminal = self.get_value_and_terminate(state, action)
 
             if is_terminal:
                 print(state)
@@ -108,7 +108,7 @@ class Connect4:
                     print("It's a draw!")
                 break
 
-            player = game.get_opponent(player)
+            player = self.get_opponent(player)
 
 class ResNet(nn.Module):
     def __init__(self, game, num_resBlocks, num_hidden, device):
@@ -130,7 +130,7 @@ class ResNet(nn.Module):
             nn.Linear(32 * game.row_count * game.colum_count, game.action_size)
         )
 
-        self.valueHead =nn.Sequential(
+        self.valueHead = nn.Sequential(
             nn.Conv2d(num_hidden, 3, kernel_size=3, padding=1),
             nn.BatchNorm2d(3),
             nn.ReLU(),
@@ -148,7 +148,6 @@ class ResNet(nn.Module):
         value = self.valueHead(x)
         return policy, value
 
-
 class ResBlock(nn.Module):
     def __init__(self, num_hidden):
         super().__init__()
@@ -164,8 +163,6 @@ class ResBlock(nn.Module):
         x += residual
         x = F.relu(x)
         return x
-
-
 
 class Node:
     def __init__(self, game, args, state, parent=None, action_taken=None, prior=0, visit_count=0):
@@ -240,8 +237,6 @@ class Node:
         if self.parent is not None:
             self.parent.backpropagate(value)
 
-
-
 class MCTSParallel:
     def __init__(self, game, args, model):
         self.game = game
@@ -259,11 +254,11 @@ class MCTSParallel:
 
         for i, spg in enumerate(spGames):
             spg_policy = policy[i]
-            valid_moves = self.game.get_valid_moves(state)
+            valid_moves = self.game.get_valid_moves(spg.state)
             spg_policy *= valid_moves
             spg_policy /= np.sum(spg_policy)
 
-            spg.root = Node(self.game, self.args, states[i], visit_count=1)
+            spg.root = Node(self.game, self.args, spg.state, visit_count=1)
 
             spg.root.expand(spg_policy)
 
@@ -350,7 +345,6 @@ class MCTS:
 
                 node.expand(policy)
 
-
             node.backpropagate(value)
 
         action_probs = np.zeros(self.game.action_size)
@@ -359,14 +353,9 @@ class MCTS:
         action_probs /= np.sum(action_probs)
         return action_probs
 
-
-
-
-
-
 class AlphaZeroParallel:
     def __init__(self, model, optimizer, game, args):
-        self.model = model
+        self.model = model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
         self.optimizer = optimizer
         self.game = game
         self.args = args
@@ -375,14 +364,12 @@ class AlphaZeroParallel:
     def selfPlay(self):
         return_memory = []
         player = 1
-        spGames = (SPG(self.game) for  spg in range(self.args['num_parallel_games']))
+        spGames = [SPG(self.game) for spg in range(self.args['num_parallel_games'])]
 
-
-        while len(spGames) >0:
+        while len(spGames) > 0:
             states = np.stack([spg.state for spg in spGames])
 
             neutral_states = self.game.change_perspective(states, player)
-
             self.mcts.search(neutral_states, spGames)
 
             for i in range(len(spGames))[::-1]:
@@ -393,10 +380,10 @@ class AlphaZeroParallel:
                     action_probs[child.action_taken] = child.visit_count
                 action_probs /= np.sum(action_probs)
 
-
                 spg.memory.append((spg.root.state, action_probs, player))
 
-                temperature_action_probs = action_probs ** (1/ self.args['temperature'])
+                temperature_action_probs = action_probs ** (1 / self.args['temperature'])
+                temperature_action_probs /= np.sum(temperature_action_probs)  # Ensure it sums to 1
                 action = np.random.choice(self.game.action_size, p=temperature_action_probs)
 
                 spg.state = self.game.get_next_state(spg.state, action, player)
@@ -412,10 +399,11 @@ class AlphaZeroParallel:
                         ))
                     del spGames[i]
 
-
             player = self.game.get_opponent(player)
 
         return return_memory
+
+
 
     def train(self, memory):
         random.shuffle(memory)
@@ -438,61 +426,56 @@ class AlphaZeroParallel:
             loss.backward()
             optimizer.step()
 
-
     def learn(self):
-        for iteration in self.args['num_iterations']:
+        for iteration in range(self.args['num_iterations']):
             memory = []
 
+
             self.model.eval()
-            for selfPlay_iteration in trange(self.args['num_selfPlay_iterations'] // self.args['num_parallel_games']):
+            for selfPlay_iteration in range(self.args['num_selfPlay_iterations'] // self.args['num_parallel_games']):
                 memory += self.selfPlay()
+                print(f"iteration: {iteration}, game: {selfPlay_iteration}")
+
 
             self.model.train()
-            for epoch in trange(self.args['num_epochs']):
+            for epoch in range(self.args['num_epochs']):
                 self.train(memory)
 
             torch.save(self.model.state_dict(), f"model_{iteration}_{self.game}.pt" )
             torch.save(self.optimizer.state_dict(), f"optimizer_{iteration}_{self.game}.pt")
 
-
 class SPG:
-    def __int__(self, game):
-        state = game.get_init_state()
+    def __init__(self, game):
+        self.state = game.get_init_state()
         self.memory = []
         self.root = None
         self.node = None
-
-
-
-
-
 
 game = Connect4()
 player = 1
 state = game.get_init_state()
 
-
 args = {
     'C': 2,
-    'num_searches': 600,
+    'num_searches': 1000,
     'num_iterations' : 8,
-    'num_selfPlay_iterations' : 500,
-    'num_parallel_games' : 100,
+    'num_selfPlay_iterations' : 300,
+    'num_parallel_games' : 15,
     'num_epochs' : 4,
     'batch_size' : 64,
     'temperature' : 1.25,
     'dirichlet_epsilon' : 0.25,
     'dirichlet_alpha' : 0.3
-
 }
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = ResNet(game, 9, 128, device=torch.device("cpu"))
+state_dict = torch.load("model_2_Connect4.pt")
+model.load_state_dict(state_dict)
 model.eval()
 mcts = MCTS(game, args, model)
 mcts_train = MCTSParallel(game, args, model)
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
 alphazero = AlphaZeroParallel(model, optimizer, game, args)
 
-
-
-alphazero.learn()
+game.play(state, player)
