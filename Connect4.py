@@ -1,3 +1,5 @@
+
+
 import numpy as np
 import torch
 import math
@@ -472,10 +474,13 @@ model = ResNet(game, 9, 128, device=torch.device("cpu"))
 state_dict = torch.load("model_2_Connect4.pt")
 model.load_state_dict(state_dict)
 model.eval()
+
 mcts = MCTS(game, args, model)
 mcts_train = MCTSParallel(game, args, model)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
 alphazero = AlphaZeroParallel(model, optimizer, game, args)
 
+
 game.play(state, player)
+
