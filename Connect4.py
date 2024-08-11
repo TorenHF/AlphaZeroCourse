@@ -1,3 +1,5 @@
+from sqlite3 import connect
+
 import numpy as np
 import torch
 import math
@@ -475,4 +477,4 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
 alphazero = AlphaZeroParallel(model, optimizer, game, args)
 
-alphazero.learn()
+game.play(state, player)
