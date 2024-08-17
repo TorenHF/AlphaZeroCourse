@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import random
 
+
 torch.manual_seed(0)
 
 class Connect4:
@@ -33,29 +34,30 @@ class Connect4:
     def check_win(self, state, action):
         if action is None:
             return False
-        row = np.min(np.where(state[:,action] != 0))
-        colum = action
-        player = state[row][colum]
+
+        row = np.min(np.where(state[:, action] != 0))
+        column = action
+        player = state[row][column]
 
         def count(offset_row, offset_column):
             for i in range(1, self.in_a_row):
-                r= row + offset_row*i
-                c = colum + offset_column*i
+                r = row + offset_row * i
+                c = column + offset_column * i
                 if (
-                    r<0
-                    or r>= self.row_count
-                    or c<0
-                    or c >= self.colum_count
-                    or state[r][c] !=player
+                        r < 0
+                        or r >= self.row_count
+                        or c < 0
+                        or c >= self.colum_count
+                        or state[r][c] != player
                 ):
-                    return i -1
-            return self.in_a_row-1
+                    return i - 1
+            return self.in_a_row - 1
 
         return (
-            count(1, 0)>= self.in_a_row-1
-            or (count(0,1)+ count(0, -1)) >= self.in_a_row-1
-            or (count(1,1)+ count(-1, -1)) >= self.in_a_row-1
-            or (count(1, -1)+ count(-1, -1)) >= self.in_a_row-1
+                count(1, 0) >= self.in_a_row - 1
+                or (count(0, 1) + count(0, -1)) >= self.in_a_row - 1
+                or (count(1, 1) + count(-1, -1)) >= self.in_a_row - 1
+                or (count(1, -1) + count(-1, 1)) >= self.in_a_row - 1
         )
 
     def get_value_and_terminate(self, state, action):
@@ -111,6 +113,74 @@ class Connect4:
                 break
 
             player = self.get_opponent(player)
+
+class Engine_test:
+    def __init__(self, game, state, args, player, model_1, model_2):
+        self.game = game
+        self.args = args
+        self.player = player
+        self.model_1 = model_1
+        self.model_2 = model_2
+        self.model_1_win_counter = 0
+        self.model_2_win_counter = 0
+        self.draw_counter = 0
+        self.state = state
+
+    def count_win(self, player):
+        if player == 1:
+            self.model_1_win_counter += 1
+
+        elif player == -1:
+            self.model_2_win_counter += 1
+
+        else:
+            self.draw_counter += 0
+
+    def show_results(self):
+        print(f"engine 1 wins: {self.model_1_win_counter}")
+        print(f"engine 2 wins: {self.model_2_win_counter}")
+        print(f"draws: {self.draw_counter}")
+
+    def engine_play(self):
+        start_player = self.player
+        for game in range(self.args['num_engine_games']):
+            state = self.game.get_init_state()
+            start_player = self.game.get_opponent(start_player)
+            player = start_player
+
+
+            while True:
+                if player == 1:
+                    neutral_state = self.game.change_perspective(state, player)
+                    mcts_probs = mcts.search(neutral_state, self.model_1)
+                    action = np.argmax(mcts_probs)
+                else:
+                    neutral_state = self.game.change_perspective(state, player)
+                    mcts_probs = mcts.search(neutral_state, self.model_2)
+                    action = np.argmax(mcts_probs)
+
+                state = self.game.get_next_state(state, action, player)
+                value, is_terminal = self.game.get_value_and_terminate(state, action)
+
+                if is_terminal:
+                    if value == 1:
+                        self.count_win(player)
+                        print(f"Player {player} won")
+                    else:
+                        self.count_win(player=0)
+                        print("draw")
+                    break
+
+                player = self.game.get_opponent(player)
+
+
+
+
+
+
+
+
+
 
 class ResNet(nn.Module):
     def __init__(self, game, num_resBlocks, num_hidden, device):
@@ -210,6 +280,7 @@ class Node:
 
                 child = Node(self.game, self.args, child_state, self, action, prob)
                 self.children.append(child)
+
         return child
 
     def simulate(self):
@@ -304,16 +375,16 @@ class MCTSParallel:
                     node.backpropagate(spg_value)
 
 class MCTS:
-    def __init__(self, game, args, model):
+    def __init__(self, game, args):
         self.game = game
         self.args = args
-        self.model = model
+
 
     @torch.no_grad()
-    def search(self, state):
+    def search(self, state, model):
         root = Node(self.game, self.args, state, visit_count=1)
-        policy, _ = self.model(
-            torch.tensor(self.game.get_encoded_state(state), device=self.model.device).unsqueeze(0)
+        policy, _ = model(
+            torch.tensor(self.game.get_encoded_state(state), device=model.device).unsqueeze(0)
         )
         policy = torch.softmax(policy, axis=1).squeeze(0).cpu().numpy()
         policy = ((1-self.args['dirichlet_epsilon']) * policy + self.args['dirichlet_epsilon']
@@ -335,8 +406,8 @@ class MCTS:
             value = self.game.get_opponent_value(value)
 
             if not is_terminal:
-                policy, value = self.model(
-                    torch.tensor(self.game.get_encoded_state(node.state), device=self.model.device).unsqueeze(0)
+                policy, value = model(
+                    torch.tensor(self.game.get_encoded_state(node.state), device=model.device).unsqueeze(0)
                 )
                 policy = torch.softmax(policy, axis=1).squeeze(0).cpu().numpy()
                 valid_moves = self.game.get_valid_moves(node.state)
@@ -459,7 +530,7 @@ state = game.get_init_state()
 
 args = {
     'C': 2,
-    'num_searches': 1000,
+    'num_searches': 500,
     'num_iterations' : 8,
     'num_selfPlay_iterations' : 300,
     'num_parallel_games' : 15,
@@ -467,20 +538,29 @@ args = {
     'batch_size' : 64,
     'temperature' : 1.25,
     'dirichlet_epsilon' : 0.25,
-    'dirichlet_alpha' : 0.3
+    'dirichlet_alpha' : 0.3,
+    'num_engine_games' : 100
 }
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = ResNet(game, 9, 128, device=torch.device("cpu"))
-state_dict = torch.load("model_2_Connect4.pt")
-model.load_state_dict(state_dict)
-model.eval()
 
-mcts = MCTS(game, args, model)
-mcts_train = MCTSParallel(game, args, model)
+model_1 = ResNet(game, 9, 128, device=torch.device("cpu"))
+model_2 = ResNet(game, 9, 128, device=torch.device("cpu"))
+state_dict_1 = torch.load("model_7_Connect4.pt")
+model_1.load_state_dict(state_dict_1)
+model_1.eval()
 
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
-alphazero = AlphaZeroParallel(model, optimizer, game, args)
+model_2 = ResNet(game, 9, 128, device=torch.device("cpu"))
+state_dict_2 = torch.load("model_0_Connect4.pt")
+model_2.load_state_dict(state_dict_2)
+model_2.eval()
+
+mcts = MCTS(game, args)
+mcts_train = MCTSParallel(game, args, model_1)
+
+engine_test = Engine_test(game, state, args, player, model_1, model_2)
+optimizer = torch.optim.Adam(model_1.parameters(), lr=0.001, weight_decay=0.0001)
+alphazero = AlphaZeroParallel(model_1, optimizer, game, args)
 
 
-game.play(state, player)
-
+engine_test.engine_play()
+engine_test.show_results()
