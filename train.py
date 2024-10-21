@@ -449,7 +449,9 @@ class AlphaZeroParallel:
                 action_probs /= np.sum(action_probs)
 
                 # Save the π (action probabilities) and the Q value of the root node
-                q_value = spg.root.value_sum / spg.root.visit_count  # Q-value for the root node
+                q_value = spg.root.value_sum / spg.root.visit_count  # Q-value for the root nod
+                if isinstance(q_value, np.ndarray):
+                    q_value = q_value.item()  # Convert to scalar if necessary
                 spg.memory.append((spg.root.state, action_probs, player, q_value))  # Store q_value
 
                 temperature_action_probs = action_probs ** (1 / self.args['temperature'])
@@ -540,8 +542,8 @@ args = {
     'C': 2,
     'num_searches': 500,
     'num_iterations' : 8,
-    'num_selfPlay_iterations' : 10,
-    'num_parallel_games' : 1,
+    'num_selfPlay_iterations' : 300,
+    'num_parallel_games' : 15,
     'num_epochs' : 4,
     'batch_size' : 64,
     'temperature' : 1.25,
@@ -561,5 +563,5 @@ mcts_train = MCTSParallel(game, args, model)
 
 alphazero = AlphaZeroParallel(model, optimizer, game, args)
 
-print(model.device)
+alphazero.learn()
 
