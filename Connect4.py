@@ -547,7 +547,7 @@ model_1.load_state_dict(state_dict_1)
 model_1.eval()
 
 
-state_dict_2 = torch.load("model_0_Connect4.pt")
+state_dict_2 = torch.load("model_7_Connect4_q-test.pt")
 model_2.load_state_dict(state_dict_2)
 model_2.eval()
 
@@ -559,4 +559,104 @@ optimizer = torch.optim.Adam(model_1.parameters(), lr=0.001, weight_decay=0.0001
 alphazero = AlphaZeroParallel(model_1, optimizer, game, args)
 
 
-game.play(state, player, model_1)
+engine_test.engine_play()
+#Player -1 won
+Player 1 won
+Player 1 won
+Player 1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player 1 won
+Player -1 won
+Player -1 won
+Player 1 won
+Player -1 won
+Player 1 won
+Player 1 won
+Player 1 won
+Player 1 won
+draw
+Player -1 won
+Player 1 won
+Player 1 won
+Player 1 won
+Player -1 won
+draw
+draw
+Player -1 won
+Player 1 won
+Player 1 won
+Player -1 won
+Player 1 won
+Player -1 won
+Player -1 won
+draw
+Player 1 won
+Player 1 won
+Player -1 won
+Player 1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player 1 won
+Player 1 won
+draw
+Player -1 won
+Player 1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player 1 won
+Player -1 won
+Player 1 won
+Player -1 won
+Player 1 won
+Player 1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player 1 won
+Player -1 won
+Player 1 won
+Player 1 won
+Player -1 won
+Player -1 won
+Player 1 won
+draw
+Player 1 won
+Player 1 won
+Player 1 won
+Player -1 won
+draw
+Player 1 won
+draw
+Player 1 won
+Player 1 won
+Player 1 won
+Player -1 won
+draw
+Player -1 won
+Player -1 won
+Player -1 won
+Player 1 won
+Player 1 won
+Player -1 won
+draw
+Player 1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player 1 won
+Player -1 won
+Player -1 won
+Player 1 won
+Player -1 won
