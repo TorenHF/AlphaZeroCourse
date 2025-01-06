@@ -527,7 +527,7 @@ state = game.get_init_state()
 
 args = {
     'C': 2,
-    'num_searches': 500,
+    'num_searches': 1000,
     'num_iterations' : 8,
     'num_selfPlay_iterations' : 300,
     'num_parallel_games' : 15,
@@ -542,12 +542,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model_1 = ResNet(game, 9, 128, device=torch.device("cpu"))
 model_2 = ResNet(game, 9, 128, device=torch.device("cpu"))
-state_dict_1 = torch.load("model_7_Connect4.pt")
+state_dict_1 = torch.load("model_7_Connect4.pt", weights_only=True)
 model_1.load_state_dict(state_dict_1)
 model_1.eval()
 
 
-state_dict_2 = torch.load("model_7_Connect4_q-test.pt")
+state_dict_2 = torch.load("model_7_Connect4_q-test.pt", weights_only=True)
 model_2.load_state_dict(state_dict_2)
 model_2.eval()
 
@@ -559,104 +559,4 @@ optimizer = torch.optim.Adam(model_1.parameters(), lr=0.001, weight_decay=0.0001
 alphazero = AlphaZeroParallel(model_1, optimizer, game, args)
 
 
-engine_test.engine_play()
-#Player -1 won
-Player 1 won
-Player 1 won
-Player 1 won
-Player -1 won
-Player -1 won
-Player -1 won
-Player 1 won
-Player -1 won
-Player -1 won
-Player 1 won
-Player -1 won
-Player 1 won
-Player 1 won
-Player 1 won
-Player 1 won
-draw
-Player -1 won
-Player 1 won
-Player 1 won
-Player 1 won
-Player -1 won
-draw
-draw
-Player -1 won
-Player 1 won
-Player 1 won
-Player -1 won
-Player 1 won
-Player -1 won
-Player -1 won
-draw
-Player 1 won
-Player 1 won
-Player -1 won
-Player 1 won
-Player -1 won
-Player -1 won
-Player -1 won
-Player -1 won
-Player 1 won
-Player 1 won
-draw
-Player -1 won
-Player 1 won
-Player -1 won
-Player -1 won
-Player -1 won
-Player 1 won
-Player -1 won
-Player 1 won
-Player -1 won
-Player 1 won
-Player 1 won
-Player -1 won
-Player -1 won
-Player -1 won
-Player -1 won
-Player -1 won
-Player -1 won
-Player -1 won
-Player 1 won
-Player -1 won
-Player 1 won
-Player 1 won
-Player -1 won
-Player -1 won
-Player 1 won
-draw
-Player 1 won
-Player 1 won
-Player 1 won
-Player -1 won
-draw
-Player 1 won
-draw
-Player 1 won
-Player 1 won
-Player 1 won
-Player -1 won
-draw
-Player -1 won
-Player -1 won
-Player -1 won
-Player 1 won
-Player 1 won
-Player -1 won
-draw
-Player 1 won
-Player -1 won
-Player -1 won
-Player -1 won
-Player -1 won
-Player -1 won
-Player -1 won
-Player 1 won
-Player -1 won
-Player -1 won
-Player 1 won
-Player -1 won
+game.play(state, player, model_2)
