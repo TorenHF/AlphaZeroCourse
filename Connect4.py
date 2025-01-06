@@ -85,7 +85,7 @@ class Connect4:
 
         return encoded_state
 
-    def play(self, state, player):
+    def play(self, state, player, model):
         while True:
             print(state)
             if player == 1:
@@ -98,7 +98,7 @@ class Connect4:
                     continue
             else:
                 neutral_state = self.change_perspective(state, player)
-                mcts_probs = mcts.search(neutral_state)
+                mcts_probs = mcts.search(neutral_state, model)
                 action = np.argmax(mcts_probs)
 
             state = self.get_next_state(state, action, player)
@@ -133,13 +133,12 @@ class Engine_test:
         elif player == -1:
             self.model_2_win_counter += 1
 
-        else:
-            self.draw_counter += 0
+
 
     def show_results(self):
         print(f"engine 1 wins: {self.model_1_win_counter}")
         print(f"engine 2 wins: {self.model_2_win_counter}")
-        print(f"draws: {self.draw_counter}")
+        print("draws:", 100-(self.model_2_win_counter + self.model_1_win_counter))
 
     def engine_play(self):
         start_player = self.player
@@ -167,7 +166,6 @@ class Engine_test:
                         self.count_win(player)
                         print(f"Player {player} won")
                     else:
-                        self.count_win(player=0)
                         print("draw")
                     break
 
@@ -246,7 +244,6 @@ class Node:
         self.prior = prior
 
         self.children = []
-        #self.expandable_moves = game.get_valid_moves(state), removing this, but actually could be used to make search phase more effficient
         self.visit_count = visit_count
         self.value_sum = 0
 
@@ -549,8 +546,8 @@ state_dict_1 = torch.load("model_7_Connect4.pt")
 model_1.load_state_dict(state_dict_1)
 model_1.eval()
 
-model_2 = ResNet(game, 9, 128, device=torch.device("cpu"))
-state_dict_2 = torch.load("model_0_Connect4.pt")
+
+state_dict_2 = torch.load("model_7_Connect4_q-test.pt")
 model_2.load_state_dict(state_dict_2)
 model_2.eval()
 
@@ -563,4 +560,103 @@ alphazero = AlphaZeroParallel(model_1, optimizer, game, args)
 
 
 engine_test.engine_play()
-engine_test.show_results()
+#Player -1 won
+Player 1 won
+Player 1 won
+Player 1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player 1 won
+Player -1 won
+Player -1 won
+Player 1 won
+Player -1 won
+Player 1 won
+Player 1 won
+Player 1 won
+Player 1 won
+draw
+Player -1 won
+Player 1 won
+Player 1 won
+Player 1 won
+Player -1 won
+draw
+draw
+Player -1 won
+Player 1 won
+Player 1 won
+Player -1 won
+Player 1 won
+Player -1 won
+Player -1 won
+draw
+Player 1 won
+Player 1 won
+Player -1 won
+Player 1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player 1 won
+Player 1 won
+draw
+Player -1 won
+Player 1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player 1 won
+Player -1 won
+Player 1 won
+Player -1 won
+Player 1 won
+Player 1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player 1 won
+Player -1 won
+Player 1 won
+Player 1 won
+Player -1 won
+Player -1 won
+Player 1 won
+draw
+Player 1 won
+Player 1 won
+Player 1 won
+Player -1 won
+draw
+Player 1 won
+draw
+Player 1 won
+Player 1 won
+Player 1 won
+Player -1 won
+draw
+Player -1 won
+Player -1 won
+Player -1 won
+Player 1 won
+Player 1 won
+Player -1 won
+draw
+Player 1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player -1 won
+Player 1 won
+Player -1 won
+Player -1 won
+Player 1 won
+Player -1 won
