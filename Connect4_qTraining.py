@@ -448,14 +448,14 @@ class AlphaZeroParallel:
                     action_probs[child.action_taken] = child.visit_count
                 action_probs /= np.sum(action_probs)
 
-                # Save the π (action probabilities) and the Q value of the root node
-                q_value = spg.root.value_sum / spg.root.visit_count  # Q-value for the root nod
+
+                q_value = spg.root.value_sum / spg.root.visit_count
                 if isinstance(q_value, np.ndarray):
-                    q_value = q_value.item()  # Convert to scalar if necessary
-                spg.memory.append((spg.root.state, action_probs, player, q_value))  # Store q_value
+                    q_value = q_value.item()
+                spg.memory.append((spg.root.state, action_probs, player, q_value))
 
                 temperature_action_probs = action_probs ** (1 / self.args['temperature'])
-                temperature_action_probs /= np.sum(temperature_action_probs)  # Ensure it sums to 1
+                temperature_action_probs /= np.sum(temperature_action_probs)
                 action = np.random.choice(self.game.action_size, p=temperature_action_probs)
 
                 spg.state = self.game.get_next_state(spg.state, action, player)
@@ -467,8 +467,8 @@ class AlphaZeroParallel:
                         return_memory.append((
                             self.game.get_encoded_state(hist_neutral_state),
                             hist_action_probs,
-                            hist_outcome,  # Use the final outcome as z
-                            hist_q_value  # Save q for training
+                            hist_outcome,
+                            hist_q_value
                         ))
                     del spGames[i]
 
@@ -484,9 +484,9 @@ class AlphaZeroParallel:
 
             state, policy_targets, value_targets = np.array(state), np.array(policy_targets), np.array(
                 value_targets).reshape(-1, 1)
-            q_values = np.array(q_values).reshape(-1, 1)  # Reshape q_values
+            q_values = np.array(q_values).reshape(-1, 1)
 
-            # Compute the average of q and z (value_targets)
+
             avg_qz = (q_values + value_targets) / 2.0
 
             state = torch.tensor(state, dtype=torch.float32, device=self.model.device)
@@ -495,16 +495,16 @@ class AlphaZeroParallel:
 
             out_policy, out_value = self.model(state)
 
-            # Policy loss remains the same
+
             policy_loss = F.cross_entropy(out_policy, policy_targets)
 
-            # Value loss: train on the average of q and z
+
             value_loss = F.mse_loss(out_value, avg_qz)
 
-            # Total loss
+
             loss = policy_loss + value_loss
 
-            # Backpropagation
+
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
